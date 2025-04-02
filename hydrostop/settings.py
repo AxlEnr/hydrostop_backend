@@ -27,7 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "192.168.1.125", "localhost", "127.0.0.1", "192.168.1.116", "192.168.1.124",
-    "192.168.0.204"
+    "192.168.0.204", "192.168.1.95"
 ]
 
 
@@ -48,11 +48,18 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
 ]
 
+AUTH_USER_MODEL = 'user.User'
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'user_api.backends.EmailBackend',  
+]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -66,8 +73,8 @@ MIDDLEWARE = [
 ]
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',  # Backend por defecto
-    'user_api.backends.EmailBackend',  # Backend personalizado para autenticar con email
+    'django.contrib.auth.backends.ModelBackend',
+    'user_api.backends.EmailBackend',
 ]
 
 ROOT_URLCONF = 'hydrostop.urls'
