@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import AllowAny
 
 # GET ALL USERS
 @api_view(['GET'])
@@ -48,33 +49,43 @@ def delete_user(request, user_id):
     user.save()
     return Response({'message': 'Usuario desactivado'}, status=status.HTTP_200_OK)
 
+# views.py
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+    
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
 
         if not email or not password:
-            return Response({'error': 'Correo y contraseña son requeridos'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Email and password are required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({'error': 'Credenciales incorrectas'}, status=status.HTTP_401_UNAUTHORIZED)
+        # Usa el backend personalizado
+        user = authenticate(request, username=email, password=password)
+        
+        if not user:
+            return Response({'error': 'Invalid credentials'}, 
+                          status=status.HTTP_401_UNAUTHORIZED)
 
-        # Autenticar directamente con email y password
-        if not user.check_password(password):  # Compara la contraseña encriptada
-            return Response({'error': 'Credenciales incorrectas'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Si la autenticación es exitosa, generar los tokens
         refresh = RefreshToken.for_user(user)
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'role': user.role,
-            }
+            'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
-
+        
+@api_view(['PUT'])
+def change_password(request):
+    user = request.user
+    old_password = request.data.get('old_password')
+    new_password = request.data.get('new_password')
+    
+    if not user.check_password(old_password):
+        return Response({'error': 'Wrong password'}, 
+                      status=status.HTTP_400_BAD_REQUEST)
+    
+    user.set_password(new_password)
+    user.save()
+    return Response({'message': 'Password updated successfully'}, 
+                  status=status.HTTP_200_OK)
