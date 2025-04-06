@@ -100,3 +100,62 @@ def update_shower_config(request, shower_id):
             {"error": str(e)},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+@api_view(['PUT'])
+def update_all_showers(request):
+    try:
+        shower_time = request.data.get('shower_time')
+        alert_time = request.data.get('alert_time')
+        
+        if not shower_time or not alert_time:
+            return Response(
+                {"error": "shower_time and alert_time are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Actualizar todas las regaderas
+        showers = Shower.objects.all()
+        updated_count = showers.update(
+            time=shower_time,
+            alert_time=alert_time
+        )
+        
+        return Response({
+            "message": f"Updated {updated_count} showers",
+            "shower_time": shower_time,
+            "alert_time": alert_time
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['DELETE'])
+def delete_shower(request, shower_id):
+    try:
+        shower = get_object_or_404(Shower, id=shower_id)
+        shower.delete()
+        return Response(
+            {"message": f"Regadera {shower_id} eliminada correctamente"},
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return Response(
+            {"error": str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+@api_view(['GET'])
+def check_shower_exists(request):
+    name = request.GET.get('name', '')
+    ip = request.GET.get('ip', '')
+    
+    name_exists = Shower.objects.filter(name=name).exists()
+    ip_exists = Shower.objects.filter(ip_address=ip).exists()
+    
+    return Response({
+        'name_exists': name_exists,
+        'ip_exists': ip_exists
+    }, status=status.HTTP_200_OK)

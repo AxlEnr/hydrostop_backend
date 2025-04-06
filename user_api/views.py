@@ -41,14 +41,6 @@ def update_user(request, user_id):
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# DEACTIVATE USER
-@api_view(['PUT'])
-def delete_user(request, user_id):
-    user = get_object_or_404(User, id=user_id)
-    user.is_active = False  # Desactiva al usuario en lugar de modificar datos
-    user.save()
-    return Response({'message': 'Usuario desactivado'}, status=status.HTTP_200_OK)
-
 # views.py
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -89,3 +81,116 @@ def change_password(request):
     user.save()
     return Response({'message': 'Password updated successfully'}, 
                   status=status.HTTP_200_OK)
+
+@api_view(['PUT'])
+def delete_user(request, user_id):
+    try:
+        user = get_object_or_404(User, id=user_id)
+        
+        # Verificar si el usuario que hace la solicitud es admin
+        if not request.user.role == "admin":
+            return Response(
+                {'error': 'Solo administradores pueden realizar esta acción'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        user.is_active = False
+        user.save()
+        
+        return Response(
+            {'message': 'Usuario desactivado exitosamente'}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+from django.core.mail import send_mail
+from django.conf import settings
+import random
+import string
+from twilio.rest import Client
+import logging
+
+logger = logging.getLogger(__name__)
+
+@api_view(['POST'])
+def request_password_reset(request):
+    email = request.data.get('email')
+    
+    if not email:
+        return Response(
+            {'error': 'El correo electrónico es requerido'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'No existe un usuario con este correo electrónico'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    if not user.phone_number:
+        return Response(
+            {'error': 'El usuario no tiene un número de teléfono registrado'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Generar contraseña temporal
+    temp_password = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+    
+    try:
+        phone = user.phone_number
+        if not user.phone_number.startswith("+"):
+            phone = "+52" + user.phone_number
+            
+        # Actualizar contraseña del usuario primero
+        user.set_password(temp_password)
+        user.save()
+        
+        # Verificar configuración de Twilio
+        if not all([settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN, settings.TWILIO_PHONE_NUMBER]):
+            raise ValueError("Configuración de Twilio incompleta")
+
+        
+        # Enviar SMS con Twilio
+        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        
+        message = client.messages.create(
+            body=f"Tu contraseña temporal es: {temp_password}. Por favor cámbiala después de iniciar sesión.",
+            from_=settings.TWILIO_PHONE_NUMBER,
+            to=phone
+        )
+        
+        logger.info(f"SMS enviado a {user.phone_number}. SID: {message.sid}")
+        
+        return Response(
+            {'message': f'Se ha enviado una contraseña temporal al número registrado'}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except TwilioRestException as e:
+        logger.error(f"Error de Twilio: {str(e)}")
+        # Revertir el cambio de contraseña
+        user.set_password(None)
+        user.save()
+        return Response(
+            {'error': 'Error al enviar el SMS. Por favor intenta más tarde.'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        
+    except Exception as e:
+        logger.error(f"Error inesperado: {str(e)}")
+        # Revertir el cambio de contraseña si hubo otro error
+        user.set_password(None)
+        user.save()
+        return Response(
+            {'error': 'Ocurrió un error inesperado. Por favor contacta al administrador.'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

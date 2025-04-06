@@ -2,7 +2,8 @@
 from django.db import models
 
 class Shower(models.Model):
-    showerCode = models.CharField(verbose_name="Name of the shower", unique=True, max_length=30)
+    name = models.CharField(verbose_name="Name of the shower", unique=True, max_length=30)
+    ip_address = models.CharField(default="192.168.0.67", max_length=100)
     
     class StatusChoices(models.IntegerChoices):
         On = 1, "Shower On"
