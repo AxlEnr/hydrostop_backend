@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from user.models import User
+from datetime import timedelta
 
 class UserSerializer(serializers.ModelSerializer):
     time_per_shower = serializers.CharField(required=False)
@@ -8,7 +9,8 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'email', 'username', 'first_name', 'last_name', 
                  'age', 'phone_number', 'genre', 'shower_per_week', 
-                 'time_per_shower', 'role', 'password']
+                 'time_per_shower', 'role', 'password', 'status']
+        read_only_fields = ['start_time', 'duration_seconds']
         extra_kwargs = {
             'password': {'write_only': True},
             'email': {'required': True}

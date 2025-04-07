@@ -9,12 +9,28 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
 
+
 # GET ALL USERS
 @api_view(['GET'])
 def get_all_users(request):
-    users = User.objects.all()
+    users = User.objects.exclude(role="admin").filter(status=1)
     serializer = UserSerializer(users, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
+
+#GET USER
+@api_view(['GET'])
+def get_user(request):
+    try:
+        user = User.objects.get(id=request.user.id)
+        return Response({
+            'user': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+            'phone_number': user.phone_number,
+            'age': user.age,
+        }, status=status.HTTP_200_OK)
+    except User.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 # POST USERS (Signup)
 @api_view(['POST'])
@@ -23,11 +39,12 @@ def signup(request):
 
     if serializer.is_valid():
         user = serializer.save()
-        user.set_password(serializer.validated_data['password'])  # Encripta la contraseña
         user.save()
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  # Devuelve errores correctos
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 # UPDATE DATA USERS
 @api_view(['PUT'])
@@ -39,26 +56,37 @@ def update_user(request, user_id):
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
     
+    print(serializer.errors)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # views.py
 class LoginView(APIView):
     permission_classes = [AllowAny]
-    
+
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
 
         if not email or not password:
             return Response({'error': 'Email and password are required'}, 
-                          status=status.HTTP_400_BAD_REQUEST)
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        # Usa el backend personalizado
+        # Verifica si el usuario existe antes de autenticar
+        try:
+            user = User.objects.get(email=email)
+            if user.status == 0:  # Si el status es 0, el usuario está bloqueado
+                return Response({'error': 'Tu cuenta ha sido bloqueda por el administrador'}, 
+                                status=status.HTTP_403_FORBIDDEN)
+        except User.DoesNotExist:
+            return Response({'error': 'Email o Contraseña inválidas'}, 
+                            status=status.HTTP_401_UNAUTHORIZED)
+
+        # Usa el backend de autenticación
         user = authenticate(request, username=email, password=password)
         
         if not user:
-            return Response({'error': 'Invalid credentials'}, 
-                          status=status.HTTP_401_UNAUTHORIZED)
+            return Response({'error': 'Email o Contraseña inválidas'}, 
+                            status=status.HTTP_401_UNAUTHORIZED)
 
         refresh = RefreshToken.for_user(user)
         return Response({
@@ -66,7 +94,8 @@ class LoginView(APIView):
             'access': str(refresh.access_token),
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
-        
+
+
 @api_view(['PUT'])
 def change_password(request):
     user = request.user
@@ -94,7 +123,7 @@ def delete_user(request, user_id):
                 status=status.HTTP_403_FORBIDDEN
             )
     
-        user.is_active = False
+        user.status = 0
         user.save()
         
         return Response(
@@ -194,3 +223,35 @@ def request_password_reset(request):
             {'error': 'Ocurrió un error inesperado. Por favor contacta al administrador.'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+@api_view(['PUT'])
+def activate_user(request, user_id):
+    try:
+        user = get_object_or_404(User, id=user_id)
+        
+        # Verificar si el usuario que hace la solicitud es admin
+        if not request.user.role == "admin":
+            return Response(
+                {'error': 'Solo administradores pueden realizar esta acción'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        user.status = 1
+        user.save()
+        
+        return Response(
+            {'message': 'Usuario activado exitosamente'}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+def get_all_users_a(request):
+    users = User.objects.exclude(role="admin").filter(status=0)
+    serializer = UserSerializer(users, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

@@ -25,14 +25,23 @@ def create_showers(request):
 
 @api_view(['PUT'])
 def update_showers(request, shower_id):
-    shower = get_object_or_404(Shower, id = shower_id)
-    serializer = ShowerSerializer(shower, data = request.data, partial = True)
-
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    shower = get_object_or_404(Shower, id=shower_id)
     
-    return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        if 'status' in request.data:
+            shower.status = int(request.data['status'])
+        
+        # Usar el usuario autenticado en lugar del enviado
+        shower.last_user_id = request.user
+        
+        shower.save()
+        
+        serializer = ShowerSerializer(shower)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(['PUT'])
 def delete_showers(request, shower_id):
@@ -134,18 +143,19 @@ def update_all_showers(request):
 
 @api_view(['DELETE'])
 def delete_shower(request, shower_id):
-    try:
-        shower = get_object_or_404(Shower, id=shower_id)
-        shower.delete()
-        return Response(
-            {"message": f"Regadera {shower_id} eliminada correctamente"},
-            status=status.HTTP_200_OK
-        )
-    except Exception as e:
-        return Response(
-            {"error": str(e)},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if request.user.role == 'admin':
+        try:
+            shower = get_object_or_404(Shower, id=shower_id)
+            shower.delete()
+            return Response(
+                {"message": f"Regadera {shower_id} eliminada correctamente"},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 @api_view(['GET'])
 def check_shower_exists(request):

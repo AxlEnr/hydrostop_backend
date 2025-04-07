@@ -2,6 +2,13 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth.hashers import make_password
 from datetime import timedelta
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.core.mail import send_mail
+from django.conf import settings
+
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
@@ -25,10 +32,9 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     shower_per_week = models.IntegerField(default=5)
     time_per_shower = models.DurationField(default=timedelta(minutes=10))
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVATE)
-    fingerprint = models.CharField(max_length=254, blank=True, null=True) 
-
+ 
     # Configuración para evitar conflictos
     groups = models.ManyToManyField(
         'auth.Group',
@@ -45,9 +51,17 @@ class User(AbstractUser):
         help_text='Specific permissions for this user.'
     )
 
+    
+
     # Configuración de autenticación
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
+    def get_creator_admin(self):
+        """Retorna el admin que creó este usuario"""
+        if self.created_by and self.created_by.role == "admin":
+            return self.created_by
+        return None
 
     def __str__(self):
         return self.get_full_name() or self.email
@@ -61,7 +75,6 @@ class User(AbstractUser):
         self.fingerprint = make_password(fingerprint)
 
     def save(self, *args, **kwargs):
-        """Sobrescribe el método save para manejar time_per_shower."""
         self.email = self.email.lower()
         if self.username:
             self.username = self.username.lower()
