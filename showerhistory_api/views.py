@@ -7,32 +7,55 @@ from .serializers import ShowerHistorySerializer
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from django.utils import timezone
+from user.models import User
+from shower.models import Shower
 
 @api_view(['POST'])
 def start_shower_session(request):
     try:
         shower_id = request.data.get('shower_id')
-        duration = request.data.get('duration', 0)
-        
+        duration = request.data.get('duration')
+
+        # Validaciones
         if not shower_id:
             return Response({'error': 'shower_id es requerido'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Calcular end_time basado en la duración
+        if duration is None or not str(duration).isdigit():
+            return Response({'error': 'Duración inválida'}, status=status.HTTP_400_BAD_REQUEST)
+
+        duration = int(duration)  # Convertir a entero
+        if duration <= 0:
+            return Response({'error': 'Duración debe ser mayor a 0'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Obtener el usuario autenticado
+        user = request.user
+        if user.is_anonymous:
+            return Response({'error': 'Usuario no autenticado'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.get(pk=user.pk)  # Convertir a una instancia real
+
+        # Verificar si la regadera existe
+        try:
+            shower = Shower.objects.get(id=shower_id)
+        except Shower.DoesNotExist:
+            return Response({'error': 'La regadera no existe'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Calcular tiempos
         start_time = timezone.now()
         end_time = start_time + timezone.timedelta(seconds=duration)
-        
+
+        # Crear el historial
         history = ShowerHistory.objects.create(
-            user=request.user,
-            shower_id=shower_id,
+            user=user,
+            shower=shower,
             start_time=start_time,
             end_time=end_time,
             duration_seconds=duration,
             completed=True
         )
-        
+
         serializer = ShowerHistorySerializer(history)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
+
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

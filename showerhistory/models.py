@@ -17,7 +17,6 @@ class ShowerHistory(models.Model):
         ordering = ['-start_time']
 
     def save(self, *args, **kwargs):
-        # Solo calcular duración si ambos tiempos están establecidos
         if self.end_time and self.start_time:
             delta = self.end_time - self.start_time
             self.duration_seconds = delta.total_seconds()
