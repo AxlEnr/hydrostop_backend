@@ -26,15 +26,18 @@ def create_showers(request):
 @api_view(['PUT'])
 def update_showers(request, shower_id):
     shower = get_object_or_404(Shower, id=shower_id)
+
+    if shower.status == 1 and request.user != shower.last_user_id:
+            return Response({"error": "No tienes permitido usar la regadera mientras alguien mas la usa"}, 
+            status=status.HTTP_403_FORBIDDEN)
     
     try:
         if 'status' in request.data:
             shower.status = int(request.data['status'])
         
-        # Usar el usuario autenticado en lugar del enviado
-        shower.last_user_id = request.user
-        
+        shower.last_user_id = request.user    
         shower.save()
+
         
         serializer = ShowerSerializer(shower)
         return Response(serializer.data, status=status.HTTP_200_OK)

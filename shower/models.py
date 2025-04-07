@@ -11,6 +11,12 @@ class Shower(models.Model):
         On = 1, "Shower On"
         Off = 0, "Shower Off"
 
+    class GenderChoices(models.IntegerChoices):
+        Male = 0, "Male"
+        Female = 1, "Female"
+        Unisex = 2, "Unisex"
+
+    gender = models.CharField(choices=GenderChoices.choices, default="Unisex")
     status = models.IntegerField(choices=StatusChoices.choices, default=StatusChoices.Off)
     
     class ShowerChoices(models.IntegerChoices):
