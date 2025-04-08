@@ -5,6 +5,7 @@ from .serializers import ShowerSerializer
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 
+
 #GET ALL SHOWERS
 @api_view(['GET'])
 def get_all_showers(request):

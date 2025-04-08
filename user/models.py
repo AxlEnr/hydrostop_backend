@@ -8,6 +8,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.mail import send_mail
 from django.conf import settings
+from django.utils import timezone
 
 
 class User(AbstractUser):
@@ -34,6 +35,7 @@ class User(AbstractUser):
     time_per_shower = models.DurationField(default=timedelta(minutes=10))
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVATE)
+    last_reset_date = models.DateTimeField(auto_now_add=True, null=True)
  
     # Configuración para evitar conflictos
     groups = models.ManyToManyField(
@@ -56,6 +58,13 @@ class User(AbstractUser):
     # Configuración de autenticación
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
+    def check_reset_showers(self):
+        """Verifica si necesita resetear el contador"""
+        if timezone.now() - self.last_reset_date >= timedelta(days=7):
+            self.shower_per_week = 5  # Valor inicial
+            self.last_reset_date = timezone.now()
+            self.save()
 
     def get_creator_admin(self):
         """Retorna el admin que creó este usuario"""

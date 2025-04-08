@@ -8,6 +8,56 @@ from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
+from datetime import datetime, timedelta
+from django.utils import timezone
+from apscheduler.schedulers.background import BackgroundScheduler
+
+# Añadir al inicio del archivo
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+@api_view(['PUT'])
+def update_user_showers(request):
+    user = request.user
+    new_count = request.data.get('shower_per_week')
+    
+    if new_count is None:
+        return Response(
+            {'error': 'shower_per_week is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        user.shower_per_week = int(new_count)
+        user.save()
+        return Response(
+            {'message': 'Shower count updated'},
+            status=status.HTTP_200_OK
+        )
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+def reset_shower_counts():
+    """Tarea programada para resetear los contadores"""
+    from user.models import User
+    users = User.objects.all()
+    for user in users:
+        # Aquí puedes establecer el valor inicial que desees (ej. 5)
+        user.shower_per_week = 5  
+        user.save()
+    print(f"Reset shower counts at {timezone.now()}")
+
+# Programar el reseteo semanal (ejecutará todos los domingos a las 00:00)
+scheduler.add_job(
+    reset_shower_counts,
+    'cron',
+    day_of_week='sun',
+    hour=0,
+    minute=0
+)
 
 
 # GET ALL USERS
@@ -88,11 +138,14 @@ class LoginView(APIView):
             return Response({'error': 'Email o Contraseña inválidas'}, 
                             status=status.HTTP_401_UNAUTHORIZED)
 
+        user.check_reset_showers()
+
         refresh = RefreshToken.for_user(user)
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            'user': UserSerializer(user).data
+            'user': UserSerializer(user).data,
+            'shower_per_week': user.shower_per_week 
         }, status=status.HTTP_200_OK)
 
 
