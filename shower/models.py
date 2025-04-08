@@ -27,6 +27,8 @@ class Shower(models.Model):
 
     class TimeChoices(models.IntegerChoices):
         test = 10, "10 segundos (prueba)"
+        test3 = 30, "30 segundos (prueba)"
+        test4 = 60, "60 segundos (prueba)"
         minimo = 300, "5 minutos"
         medio = 480, "8 minutos"
         recomendado = 600, "10 minutos"
@@ -34,4 +36,4 @@ class Shower(models.Model):
         test2 = 15, "15 segundos (prueba)"
         
     time = models.IntegerField(choices=TimeChoices.choices, default=TimeChoices.recomendado)
-    alert_time = models.IntegerField(default=60, verbose_name="Tiempo de alerta antes de cerrar (segundos)")
+    alert_time = models.IntegerField(default=2, verbose_name="Tiempo de alerta antes de cerrar (segundos)")
